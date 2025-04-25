@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bradley's Email Header Analyzer Tool v0.3</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #eee;
+      margin: 20px;
+    }
+    textarea {
+      width: 100%;
+      height: 200px;
+      background: #222;
+      color: #0f0;
+      border: 1px solid #555;
+      padding: 10px;
+      resize: vertical;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px 20px;
+      background: #007bff;
+      border: none;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .output {
+      margin-top: 20px;
+      padding: 15px;
+      background: #222;
+      border-left: 4px solid #00ff00;
+      white-space: pre-wrap;
+    }
+    .spam {
+      border-left-color: red;
+      color: red;
+    }
+    .info {
+      color: #0cf;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Bradley's Email Header Analyzer Tool v0.3</h1>
+
+<textarea id="headerInput" placeholder="Paste raw email headers here..."></textarea>
+<br>
+<button onclick="analyzeHeaders()">Analyze Headers</button>
+
+<div id="result" class="output"></div>
+
+<script>
+function analyzeHeaders() {
+  const headers = document.getElementById("headerInput").value;
+  let result = '';
+  let spamScore = 0;
+  let notes = [];
+
+  const fromMatch = headers.match(/From:\s*"?[^"]*"?\s*<([^>]+)>/i);
+  const returnPathMatch = headers.match(/Return-Path:\s*<([^>]+)>/i);
+  const subjectMatch = headers.match(/Subject:\s*(.+)/i);
+  const spfMatch = headers.match(/Received-SPF:\s*(\w+)/i);
+  const dkimMatch = headers.match(/Authentication-Results:[\s\S]*?dkim=(\w+)/i);
+  const dmarcMatch = headers.match(/Authentication-Results:[\s\S]*?dmarc=(\w+)/i);
+
+  const from = fromMatch ? fromMatch[1].trim() : 'N/A';
+  const returnPath = returnPathMatch ? returnPathMatch[1].trim() : 'N/A';
+  const subject = subjectMatch ? subjectMatch[1].trim() : 'N/A';
+  const fromDomain = from.includes("@") ? from.split("@").pop() : '';
+  const returnPathDomain = returnPath.includes("@") ? returnPath.split("@").pop() : '';
+
+  result += `From: ${from}\nReturn-Path: ${returnPath}\nSubject: ${subject}\n`;
+  result += `SPF: ${spfMatch ? spfMatch[1] : 'N/A'} | DKIM: ${dkimMatch ? dkimMatch[1] : 'N/A'} | DMARC: ${dmarcMatch ? dmarcMatch[1] : 'N/A'}\n\n`;
+
+  if (fromDomain && returnPathDomain && fromDomain !== returnPathDomain) {
+    spamScore++;
+    notes.push(`Mismatch between From domain (${fromDomain}) and Return-Path domain (${returnPathDomain}).`);
+  } else if (from !== returnPath) {
+    spamScore++;
+    notes.push(`From and Return-Path differ even though domains match.`);
+  }
+
+  if (/urgent|verify|account|suspend|important|alert|update/i.test(subject)) {
+    spamScore++;
+    notes.push(`Suspicious keyword in subject: "${subject}"`);
+  }
+
+  if (spfMatch && spfMatch[1].toLowerCase() !== "pass") {
+    spamScore++;
+    notes.push(`SPF check failed: ${spfMatch[1]}`);
+  }
+  if (dkimMatch && dkimMatch[1].toLowerCase() !== "pass") {
+    spamScore++;
+    notes.push(`DKIM check failed: ${dkimMatch[1]}`);
+  }
+  if (dmarcMatch && dmarcMatch[1].toLowerCase() !== "pass") {
+    spamScore++;
+    notes.push(`DMARC check failed: ${dmarcMatch[1]}`);
+  }
+
+  if (spamScore > 0) {
+    result += `⚠ Potential Spam Detected! Spam Score: ${spamScore}\n\nReasons:\n` + notes.map(n => "- " + n).join("\n");
+    document.getElementById("result").className = "output spam";
+  } else {
+    result += "✅ No spam indicators found.";
+    document.getElementById("result").className = "output";
+  }
+
+  document.getElementById("result").textContent = result;
+}
+</script>
+
+</body>
+</html>
